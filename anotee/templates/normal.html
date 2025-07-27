@@ -1,0 +1,209 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced CVAT-like Annotation Tool</title>
+    <!-- Link to external CSS stylesheet -->
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <!-- Link to Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="main-container">
+        <!-- Top Toolbar -->
+        <div class="top-toolbar">
+            <!-- NEW: "Support Me" Button -->
+            <!-- Menu Section -->
+            <div class="dropdown">
+                <button title="Menu (Ctrl+M)"><i class="fas fa-bars"></i> Menu</button>
+                <div class="dropdown-content">
+                    <a href="#" onclick="document.getElementById('fileInput').click(); return false;"><i class="fas fa-file"></i> Add More Files</a>
+                    <a href="#" onclick="return false;"><i class="fas fa-edit"></i> Edit</a>
+                    <a href="#" onclick="return false;"><i class="fas fa-eye"></i> View</a>
+                    <a href="#" onclick="return false;"><i class="fas fa-question-circle"></i> Help</a>
+                </div>
+            </div>
+
+            <!-- Save & Export -->
+             <button class="save-button" onclick="saveWorkToStorage()">
+        <i class="fas fa-save"></i> Save Progress
+    </button>
+    <button class="export-button" title="Export Annotations" onclick="showExportModal()">
+        <i class="fas fa-download"></i> Export
+    </button>
+    <button title="Undo (Ctrl+Z)" onclick="undo()"><i class="fas fa-undo"></i> Undo</button>
+            <button title="Redo (Ctrl+Shift+Z)" onclick="redo()"><i class="fas fa-redo"></i> Redo</button>
+    <div class="timeline">
+        <div class="timeline-controls">
+            <button title="First Frame" onclick="displayImage(0)">
+                <i class="fas fa-fast-backward"></i>
+            </button>
+            <button title="Previous Frame" onclick="displayImage(currentImageIndex - 1)">
+                <i class="fas fa-step-backward"></i>
+            </button>
+            <button title="Next Frame" onclick="displayImage(currentImageIndex + 1)">
+                <i class="fas fa-step-forward"></i>
+            </button>
+            <button title="Last Frame" onclick="displayImage(loadedImages.length - 1)">
+                <i class="fas fa-fast-forward"></i>
+            </button>
+        </div>
+        <div id="frameCounter">No Images</div>
+    </div>
+    <a id="reviewLink" href="{% url 'review'%}" class="review-button">
+        <i class="fas fa-check-double"></i> Review & Download
+    </a>
+           
+
+            <!-- Right Section -->
+            <button title="Fullscreen (F11)" onclick="toggleFullscreen()"><i class="fas fa-expand"></i> Fullscreen</button>
+            <button title="Info (Ctrl+I)" onclick="showInfoModal()"><i class="fas fa-info-circle"></i> Info</button>
+        </div>
+
+        <!-- Side Toolbar -->
+        <div class="side-toolbar">
+            <div class="tool-button active" data-tooltip="Select Tool" data-tool="select"><i class="fas fa-mouse-pointer"></i></div>
+            <div class="tool-button" data-tooltip="Move Tool" data-tool="move"><i class="fas fa-arrows-alt"></i></div>
+            <div class="tool-button" data-tooltip="Rectangle" data-tool="rectangle"><i class="far fa-square"></i></div>
+            <div class="tool-button" data-tooltip="Circle" data-tool="circle"><i class="far fa-circle"></i></div>
+            <div class="tool-button" data-tooltip="Polygon" data-tool="polygon"><i class="fas fa-draw-polygon"></i></div>
+            <div class="tool-button" data-tooltip="Polyline" data-tool="polyline"><i class="fas fa-bezier-curve"></i></div>
+            <div class="tool-button" data-tooltip="Point" data-tool="point"><i class="fas fa-crosshairs"></i></div>
+            <div class="tool-button" data-tooltip="Cuboid" data-tool="cuboid" onclick="alert('Cuboid tool not implemented yet.')"><i class="fas fa-cube"></i></div>
+            <div class="tool-button" data-tooltip="Zoom" data-tool="zoom"><i class="fas fa-search-plus"></i></div>
+            <!-- UPDATED: Magic Wand now has an ID for the script to target -->
+            <div id="magicWandButton" class="tool-button" data-tooltip="Magic Wand (YOLOv8 Auto-detect)" data-tool="magic"><i class="fas fa-magic"></i></div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="main-content" id="mainContent">
+            <div class="canvas-container">
+                <canvas id="imageCanvas"></canvas>
+                <div id="drawingHint"></div>
+                <!-- NEW: Loading indicator for AI detection -->
+                <div id="loadingIndicator" class="loading-indicator">
+                    <i class="fas fa-spinner fa-spin"></i> Detecting objects...
+                </div>
+                <div class="upload-area" id="uploadArea">
+                    <i class="fas fa-image"></i>
+                    <div>Annotation workspace - Create a task to load images</div>
+                    <input type="file" id="fileInput" class="file-input" accept="image/*" multiple>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Toolbar (Updated with Labels Panel) -->
+    <div class="right-toolbar">
+        <!-- NEW: Labels Panel -->
+        <div class="panel">
+            <div class="panel-header" onclick="togglePanel(this)">
+                <h3>Labels</h3>
+                <button class="collapse-btn"><i class="fas fa-chevron-up"></i></button>
+            </div>
+            <div class="panel-content labels-list" id="labelsList">
+                <!-- Labels will be populated here by script.js -->
+            </div>
+        </div>
+
+        <!-- Existing Annotations Panel -->
+        <div class="panel">
+            <div class="panel-header" onclick="togglePanel(this)">
+                <h3>Annotations</h3>
+                <button class="collapse-btn"><i class="fas fa-chevron-up"></i></button>
+            </div>
+            <div class="toolbar-main-content">
+                <div class="action-bar">
+                    <div class="search-bar">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Search annotations..." id="searchInput">
+                    </div>
+                    <div class="action-buttons">
+                        <button class="action-btn" title="Refresh/Sync" onclick="redrawCanvas()"><i class="fas fa-sync-alt"></i></button>
+                    </div>
+                </div>
+                <div class="annotations-list" id="annotationsList"></div>
+            </div>
+        </div>
+
+        <!-- Existing Appearance and Image Panels -->
+        <div class="appearance-panel">
+            <div class="panel-header" onclick="togglePanel(this)">
+                <h3>Appearance</h3>
+                <button class="collapse-btn"><i class="fas fa-chevron-up"></i></button>
+            </div>
+            <div class="panel-content">
+                <div class="control-group">
+                    <label>Color by:</label>
+                    <div class="color-options" id="colorModeSelector">
+                        <button class="color-option active" data-mode="instance">Instance</button>
+                        <button class="color-option" data-mode="label">Label</button>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>Fill Opacity: <span id="opacityValue">20</span>%</label>
+                    <input type="range" id="opacitySlider" min="0" max="100" value="20">
+                </div>
+            </div>
+        </div>
+        <div class="appearance-panel">
+            <div class="panel-header" onclick="togglePanel(this)">
+                <h3>Image</h3>
+                <button class="collapse-btn"><i class="fas fa-chevron-up"></i></button>
+            </div>
+            <div class="panel-content">
+                <div class="control-group">
+                    <label>Brightness: <span id="brightnessValue">100</span>%</label>
+                    <input type="range" id="brightnessSlider" min="0" max="200" value="100">
+                </div>
+                <div class="control-group">
+                    <label>Contrast: <span id="contrastValue">100</span>%</label>
+                    <input type="range" id="contrastSlider" min="0" max="200" value="100">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="exportModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Export Annotations</h2>
+                <span class="close" onclick="closeExportModal()">×</span>
+            </div>
+            <div class="export-options">
+                <div class="export-option" data-format="yolo"><h3>YOLO Format</h3><p>For object detection.</p></div>
+                <div class="export-option" data-format="coco"><h3>COCO Format</h3><p>Standard format for detection, segmentation.</p></div>
+                <div class="export-option" data-format="json"><h3>Internal JSON Format</h3><p>Tool's native format for current image.</p></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="infoModal" class="modal">
+        <div class="modal-content wide">
+            <div class="modal-header">
+                <h2>Overview</h2>
+                <span class="close" onclick="closeInfoModal()">×</span>
+            </div>
+            <div id="info-overview-section"></div>
+            <h3>Annotations statistics</h3>
+            <div class="table-container">
+                <table id="info-stats-table">
+                    <thead></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button class="ok-button" onclick="closeInfoModal()">OK</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- JSZip is for creating .zip files for YOLO export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- Link to your full-featured, AI-enabled JavaScript file -->
+    <script src="{% static 'script.js' %}"></script>
+</body>
+</html>

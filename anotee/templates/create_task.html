@@ -1,0 +1,95 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Task</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background-color: #f0f2f5; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .form-container, .modal-content { background-color: #fff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); width: 100%; max-width: 500px; }
+        .form-container { display: none; }
+        .form-container.visible { display: block; }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 100; }
+        h1 { color: #1c1e21; margin-bottom: 20px; text-align: center; }
+        label { display: block; font-weight: 600; margin-bottom: 8px; text-align: left; }
+        textarea, input[type="file"] { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; margin-bottom: 10px; }
+        textarea { height: 120px; }
+        .submit-btn { width: 100%; padding: 12px; margin-top: 10px; background-color: #007bff; color: #fff; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div id="labelModal" class="modal">
+        <div class="modal-content">
+            <h1>Define Your Labels</h1>
+            <label for="labelsInput">Enter class labels, one per line:</label>
+            <textarea id="labelsInput" placeholder="person
+car
+dog"></textarea>
+            <button id="continueToUpload" class="submit-btn">Continue</button>
+        </div>
+    </div>
+    <div id="uploadFormContainer" class="form-container">
+        <h1>Upload Your Images</h1>
+        <form id="taskForm">
+            {% csrf_token %}
+            <div>
+                <label for="file_upload">Select Image Files</label>
+                <input type="file" name="uploaded_files" id="file_upload" multiple required>
+            </div>
+            <button type="submit" class="submit-btn">Submit & Open Annotator</button>
+        </form>
+    </div>
+
+    <script>
+        let userLabels = [];
+        const labelModal = document.getElementById('labelModal');
+        const uploadFormContainer = document.getElementById('uploadFormContainer');
+        
+        document.getElementById('continueToUpload').addEventListener('click', () => {
+            const labelsText = document.getElementById('labelsInput').value.trim();
+            if (labelsText === "") return alert("Please define at least one label.");
+            userLabels = labelsText.split('\n').map(l => l.trim()).filter(l => l);
+            labelModal.style.display = 'none';
+            uploadFormContainer.classList.add('visible');
+        });
+
+        document.getElementById('taskForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            formData.append('labels', JSON.stringify(userLabels));
+            
+            fetch('/create_task/', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRFToken': getCookie('csrftoken') }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Redirect to the annotator with the unique project ID
+                    window.location.href = `/normal/?project_id=${data.project_id}`;
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => console.error('Fetch Error:', error));
+        });
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    </script>s
+</body>
+</html>
